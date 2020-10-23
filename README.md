@@ -1,8 +1,29 @@
 # Genetic Algorithm For Keras Model
 
-This is in initial stage, only made using Conv2D layer of kerass.
+This is in initial stage, made using Conv2D layer, Batch 
+Normalization, Activation Layers of keras and residual block.
 it can random select keras Conv2D layers to create initial genration 
 and train it for any number of epochs that you specified.
+
+# Architecture
+This Genetic Algorithm will generate random Architecture using following
+layers of keras. you can also specify specify value of each parameters.
+There are some default value pre-defined which will be used if you 
+skip any parameter.
+
+If you want to **generate random** values then specify those values in **list**. 
+
+## Layers Supported for Architecture
+
+- Conv2D
+- Dense
+- Activation
+- Batch Normalization
+
+## Other Architecture
+
+- Residual Block
+  - Combination of any number of Conv2D layers 
 
 # how to use?
 Download these files, in ````main.py```` you can load your own dataset,
@@ -60,3 +81,47 @@ and specified in myconfig.py
    - **dilation_rate**: (int) or (list of int for random selection)
 
 - **keras_mapping**: key value pair for config to map with keras layer.
+
+## Keras Mapping
+In config the possible values for keras_mapping key are of 2 different
+types, 1st one are directly from keras, and 2nd are block of multiple
+layers such as residual block.
+
+Following table show the name for keras layers.
+
+|Name|Keras Layer|
+|---|---|
+|Conv2D|Conv2D|
+|BatchNormalization|BatchNormalization|
+|Activation|Activation|
+
+Following table show the name for parameters for keras layers.
+
+|Layer|Parameter Name|My Name|
+|---|---|---|
+|Conv2D|filters|filters|
+| |kernel_size|kernel_size|
+| |strides|strides|
+| |padding|padding|
+| |activation|activation|
+| |dilation_rate|dilation_rate|
+|BatchNormalization|momentum|momentum|
+|Activation|name of activation|function|
+
+|Layers Block|Description|
+|---|---|
+|res_block|Residual with n number of inner layer, you can use any 
+| |layers as inner layer. Final layer is always concatenation
+| |of initial and last layer before concatenation.|
+## Verbose Level
+|Verbose Level|Detail to Show|
+|---|---|
+|0|No output|
+|1|Generation Number|
+| |Best Selected Model Per Generation|
+|2|Model Number|
+| |Model Genes/Parameters|
+| |Original Gene|
+|3|Model Summary|
+|4| |
+|5|Plot Keras Model|
