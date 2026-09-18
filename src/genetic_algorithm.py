@@ -1,9 +1,36 @@
+from pathlib import Path
+
 import numpy as np
 from individual_model import GeneticModel, GENES
 from keras.utils import plot_model
+import matplotlib
+
+matplotlib.use("Agg")  # headless-safe backend: no display is available in CI/tests
 import matplotlib.pyplot as plt
-from logging_genetic_algorithm import logger
+from logging_genetic_algorithm import logger, log_generation_stats
 import time
+
+RESULTS_DIR = Path("results")
+IMAGES_DIR = Path("images")
+
+
+def _to_native(value):
+    '''
+    Coerce a numpy scalar (as returned by np.random.choice / np.random.randint)
+    to the equivalent native Python type.
+
+    Without this, gene values silently carry numpy scalar types instead of
+    plain int/str: Keras's own argument validation uses strict
+    `isinstance(value, int)` checks and rejects a bare numpy.int64 (a hard
+    crash, e.g. building a Conv2D with a randomly-chosen kernel_size), and
+    this file's own `type(x) == int` / `type(x) == str` checks in
+    mutate_model use strict *type* equality, which is also False for a
+    numpy scalar -- so mutation would silently never fire for any
+    randomly-generated gene, without raising anything.
+    '''
+    if isinstance(value, np.generic):
+        return value.item()
+    return value
 
 
 class GeneticAlgorithm:
@@ -54,12 +81,12 @@ class GeneticAlgorithm:
                     if type(GENES[gene]) == list:
                         rn = np.random.random()
                         if rn > 0.5:
-                            model.Genes[gene] += np.random.choice(GENES[gene])
+                            model.Genes[gene] += _to_native(np.random.choice(GENES[gene]))
                         else:
-                            model.Genes[gene] -= np.random.choice(GENES[gene])
-                if type(model[gene]) == str:
+                            model.Genes[gene] -= _to_native(np.random.choice(GENES[gene]))
+                if type(model.Genes[gene]) == str:
                     if type(GENES[gene]) == list:
-                        model.Genes[gene] = np.random.choice(GENES[gene])
+                        model.Genes[gene] = _to_native(np.random.choice(GENES[gene]))
         return model
 
 
@@ -69,11 +96,11 @@ class GeneticAlgorithm:
         :return: single object of GeneticModel Randomly Initialized
         '''
         new_genes = {}
-        new_genes['layers'] = np.random.choice(GENES['layers'])
+        new_genes['layers'] = _to_native(np.random.choice(GENES['layers']))
         new_genes['layers_config'] = list()
 
         for layer in range(new_genes['layers']):
-            layer_selected = np.random.choice(GENES['layer_choice'])
+            layer_selected = _to_native(np.random.choice(GENES['layer_choice']))
             keras_layer = GENES['keras_mapping'][layer_selected]
             if keras_layer == 'res_block':
                 new_genes['layers_config'].append(self.resblock_to_gene(GENES[layer_selected]))
@@ -93,7 +120,7 @@ class GeneticAlgorithm:
         new_gene['name'] = name
         for gene in genes:
             if type(genes[gene]) == list:
-                new_gene[gene] = np.random.choice(genes[gene])
+                new_gene[gene] = _to_native(np.random.choice(genes[gene]))
             if (type(genes[gene]) == int) or (type(genes[gene]) == float) or (type(genes[gene]) == str):
                 new_gene[gene] = genes[gene]
         return new_gene
@@ -107,7 +134,7 @@ class GeneticAlgorithm:
         new_gene['name'] = 'res_block'
         new_gene['layers_config'] = list()
         for layer_num in range(genes['layers']):
-            layer_name = np.random.choice(genes['layer_choice'])
+            layer_name = _to_native(np.random.choice(genes['layer_choice']))
             keras_layer = GENES['keras_mapping'][layer_name]
             if keras_layer == 'Conv2D':
                 new_gene['layers_config'].append(self.layer_to_gene(GENES[layer_name], keras_layer))
@@ -136,7 +163,7 @@ class GeneticAlgorithm:
             special_genes = model2.Genes
             other_genes = model1.Genes
             special_layers = special_genes['layers'] + 1
-        new_genes['layers'] = np.random.randint(other_genes['layers'], special_layers)
+        new_genes['layers'] = _to_native(np.random.randint(other_genes['layers'], special_layers))
         new_genes['layers_config'] = []
         for l in range(new_genes['layers']):
             if l < len(other_genes['layers_config']):
@@ -215,6 +242,7 @@ class GeneticAlgorithm:
             del model.Model
         self.statistics[-1]['accuracy'] = all_accuracies
         self.statistics[-1]['train_time'] = all_train_times
+        log_generation_stats(len(self.statistics) - 1, all_accuracies)
 
         if self.verbose >= 1:
             print('Model Fitness', model_results)
@@ -234,7 +262,8 @@ class GeneticAlgorithm:
 
 
     def write_to_file(self):
-        with open('./results/best_models.txt', 'w+') as file:
+        RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+        with open(RESULTS_DIR / 'best_models.txt', 'w+') as file:
             for model in self.best_models:
                 if type(model[0]) == int:
                     conf = ''
@@ -256,6 +285,8 @@ class GeneticAlgorithm:
             self.survival_of_fittest()
             self.create_new_best_generation()
 
-            plt.bar(list(range(10)), self.statistics[-1]['accuracy'])
-            plt.savefig('./images/Generation '+str(g)+".png")
-            #plt.show()
+            IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+            accuracies = self.statistics[-1]['accuracy']
+            plt.bar(list(range(len(accuracies))), accuracies)
+            plt.savefig(IMAGES_DIR / ('Generation ' + str(g) + ".png"))
+            plt.close()
