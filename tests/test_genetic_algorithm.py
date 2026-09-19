@@ -20,6 +20,7 @@ from keras import Input
 from keras.layers import Dense, Flatten
 
 from genetic_algorithm import GeneticAlgorithm
+from individual_model import GeneticModel
 
 
 def _tiny_algorithm(population=2, mutation_rate=0.1):
@@ -72,3 +73,18 @@ def test_breeding_produces_native_layer_count():
     ga = _tiny_algorithm(population=2)
     child = ga.breeding(ga.models[0], ga.models[1])
     assert type(child.Genes["layers"]) is int
+
+
+def test_create_population_builds_one_model_per_requested_individual():
+    population_size = 4
+    ga = _tiny_algorithm(population=population_size)
+
+    assert len(ga.models) == population_size
+    for model in ga.models:
+        assert isinstance(model, GeneticModel)
+        # Each individual gets its own freshly-built keras.Model, not a
+        # shared reference -- would silently make every "individual" the
+        # same model and defeat the point of a population.
+        assert model.Model is not None
+    model_ids = {id(model) for model in ga.models}
+    assert len(model_ids) == population_size
